@@ -185,11 +185,11 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
     '''
     learning_rate = 0.0001
     training_iters = 100000
-    batch_size = 128
+    batch_size = 256
     display_step = 10
 
     n_step = 25
-    n_hidden = 128
+    n_hidden = 256
     n_classes = 8 # 8 elements on command list -> see words_in_database
     n_cell_dim = 100
 
@@ -202,19 +202,23 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
         'out': tf.Variable(tf.random_normal([n_classes]))
     }
 
-    with tf.name_scope('Weights'):
+    with tf.name_scope('weights'):
         #   Reshape to (n_steps*batch_size, n_input)
-        inputs_x = tf.reshape(atensor_matrix, [-1, tf.size(atensor_matrix)])
+        print(atensor_matrix)
         exit()
+        inputs_x = tf.reshape(atensor_matrix, [-1,-1])#shape=(-1, tf.shape(atensor_matrix)[1]*tf.shape(atensor_matrix)[2]))
+        print("\n\nentered weight calculation and tensor resizing.\n\n")
+        exit()
+
         #inputs_x = tf.reshape(atensor_matrix, [-1, tf.size(atensor_matrix)])
 
         #   Split to get a list of 'n-steps' tensors of shape (batch_size, n_input)
         inputs_x = tf.split(0, n_step, inputs_x)
 
         weights_out1 = tf.Variable(tf.truncated_normal([2, n_hidden], stddev=np.sqrt(1./n_hidden)), name='weights')
-        biases_out1 = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
+        biases_out1  = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
         weights_out2 = tf.Variable(tf.truncated_normal([2, n_hidden], stddev=np.sqrt(1./n_hidden)), name='weights')
-        biases_out2 = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
+        biases_out2  = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
 
     exit()
 
@@ -248,21 +252,25 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
         self.train_ler_op = tf.summary.scalar("train_label_error_rate", self.ler_placeholder)
         self.dev_ler_op = tf.summary.scalar("validation_label_error_rate", self.ler_placeholder)
         self.test_ler_op = tf.summary.scalar("test_label_error_rate", self.ler_placeholder)
+
+
 '''^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     MAIN Function call and script run section
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
 #   Set up and point to the recorded voice .wav files in /voice_recs folder
 voice_recs_fldr = "voice_recs"
+test_rec_folder = "test_recs"
 
 #   Get the directory path to the current location specific to the computer running on
 src_path = os.path.abspath(__file__)    #   /path/to/dir/foobar.py
 
 #   Step back from the .py file to the general folder 
-src_dir = r"C:\Users\Zachary\Documents\A_School\ECE578-9_IntelligentRobotics_1-2\Voice_Rec_DNN\voice_rnn" 
+src_dir = r"C:\Users\Zachary\Documents\A_School\ECE578-9_IntelligentRobotics_1-2\Voice_Rec_DNN\voice_rnn\voice_command_brnn\voice_recs" 
 #src_dir = os.path.split(src_path)[0]    #   i.e. /path/to/dir/
 
 #   Join the desired voice_recs folder to the path to the project
-abs_file_path = os.path.join(src_dir,voice_recs_fldr)
+#abs_file_path = os.path.join(src_dir,voice_recs_fldr)
+abs_file_path = os.path.join(src_dir,test_rec_folder)
 
 #	Load the audio files into a matrix or array of arrays or multidimensional array
 audio_matrix, fs_matrix = AudioFileLoad(abs_file_path) # output => audiomatrix ; type - Matrix ; length - specified by file
