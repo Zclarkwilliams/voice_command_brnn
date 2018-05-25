@@ -16,6 +16,7 @@ TODO:
 import os
 import numpy as np
 import tensorflow as tf
+from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 import matplotlib.pyplot as plt
 
 from librosa.display import specshow
@@ -44,23 +45,6 @@ words_in_database = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off']
 #    print(words)
 
 '''^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RNN paramaters 
-    batch_size
-    time_step
-    learn_rate
-    ets...
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
-'''
-    global batch_size
-    batch_size = 1
-    global time_steps
-    time_steps = 5
-    global learning_rate
-    learning_rate = 0.0001
-    global training_iters
-    training_iters = 300000
-'''
-'''^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 audiofile(file_dir)
     Load all the files from the provided folder 
     inputs
@@ -86,20 +70,28 @@ def AudioFileLoad(file_dir):
 			#    Decode the filename from the file system
             if file.endswith('.wav'):   #   Valid wav file type 
                 #   Attach proper audio file name to file path
-                wave_file_path = os.path.join(file_dir,file)
-                file_array.append(wave_file_path)
+                wav_file_path = os.path.join(file_dir,file)
+                file_array.append(wav_file_path)
                
                 #   Read the audio file
-                afile, sr = load(wave_file_path)
-               
+                afile, sample_rate = load(wav_file_path)
+                
+                #audio_bin = tf.read_file(wav_file_path)
+                #desired_channels = 2
+                #wav_form = contrib_audio.decode_wav(audio_bin, desired_channels=desired_channels)
+
+                #with tf.Session() as sess:
+                #    sample_rate, audio = sess.run([wav_form.sample_rate, wav_form.audio])
+
                 #   Generate an array of the audio file loaded
                 audio_array = np.array(afile, dtype=float)
+                #audio_array = np.array(audio, dtype=float)
                 audio_matrix.append(audio_array)
                 
                 #   Set an array containing the sample_rate 
-                fs_matrix.append(sr)
+                fs_matrix.append(sample_rate)
                 #   Get the average mel function of the audio files
-                mfcc_a = mfcc(y=audio_array, sr=sr, n_mfcc=40)
+                mfcc_a = mfcc(y=audio_array, sr=sample_rate)#, n_mfcc=40)
                 mfcc_mean = np.mean(mfcc_a.T, axis=0)
                 mfccs.append(mfcc_mean)
 
@@ -125,7 +117,7 @@ def AudioFileLoad(file_dir):
         print("ERROR: Invalid file path for provided audio files. File Path: " + str(file_dir))
         exit()
 
-    return (audio_matrix, fs_matrix)
+    return (audio_matrix, fs_matrix, mfccs)
 
 
 '''^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -148,21 +140,23 @@ def GetTensor(loaded_audio_matrix):
         print("Converting loaded audio file to a tensor matrix...")
         for audio_array in loaded_audio_matrix:
             if audio_array is not None:
-                audio_tensor = tf.convert_to_tensor(audio_array, dtype=tf.float64)
-                tensor_matrix.append(audio_tensor)
-                #print(tensor_matrix)
+                tensor = tf.convert_to_tensor(audio_array, dtype=tf.int32)
 
-                tensor_slices = tf.data.Dataset.from_tensor_slices(audio_tensor)
-                sliced_matrix.append(tensor_slices)
+                tensor_matrix.append(tensor)
+                #print("\n", tensor_matrix)
+                
+                #tensor_slices = tf.data.Dataset.from_tensor_slices(raw_tensor)
+                #sliced_matrix.append(tensor_slices)
+                #print(tensor_slices)
 
-                print("Length of tensor element %i is %i " % (numtensor, len(audio_array)))
+                #print("Length of tensor element %i is %i " % (numtensor, len(audio_array)))
                 numtensor += 1
             else:
                 print("ERROR: Audio Matrix Position Empty.(GetTensor())")
     
     print("Successfully converted %i audio matrix to tensor matix." % numtensor)
-
-    return (tensor_matrix)
+    
+    return (tensor_matrix)#, sliced_matrix)
 
 '''^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     rnn()
@@ -176,7 +170,22 @@ def GetTensor(loaded_audio_matrix):
 
         Output:    
 
+RNN paramaters 
+    batch_size
+    time_step
+    learn_rate
+    ets...
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
+
+global batch_size
+batch_size = 256
+global time_steps
+time_steps = 5
+global learning_rate
+learning_rate = 0.0001
+global training_iters
+training_iters = 300000
+
 def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
     print("Processing through BiRNN...")
 
@@ -188,7 +197,7 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
     batch_size = 256
     display_step = 10
 
-    n_step = 25
+    n_step = 30
     n_hidden = 256
     n_classes = 8 # 8 elements on command list -> see words_in_database
     n_cell_dim = 100
@@ -203,43 +212,59 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
     }
 
     with tf.name_scope('weights'):
-        #   Reshape to (n_steps*batch_size, n_input)
-        print(atensor_matrix)
-        exit()
-        inputs_x = tf.reshape(atensor_matrix, [-1,-1])#shape=(-1, tf.shape(atensor_matrix)[1]*tf.shape(atensor_matrix)[2]))
-        print("\n\nentered weight calculation and tensor resizing.\n\n")
-        exit()
-
-        #inputs_x = tf.reshape(atensor_matrix, [-1, tf.size(atensor_matrix)])
-
-        #   Split to get a list of 'n-steps' tensors of shape (batch_size, n_input)
-        inputs_x = tf.split(0, n_step, inputs_x)
+        for j in range(len(atensor_matrix)):
+            #   Reshape to (n_steps*batch_size, n_input)
+            #num_row, num_cols = size(atensor_matrix[j])#map(lambda i: i.value, tf.shape(atensor_matrix[j]))
+            #print("\n\n r: %i c: %i" % (num_row, num_cols))
+            print(atensor_matrix)
+            inputs_x = tf.shape(tf.expand_dims(atensor_matrix, 2))
+            inputs_x = tf.reshape(atensor_matrix[j], [-1, tf.size(inputs_x)])
+            print(tf.shape(inputs_x))
+            
+            #   Split to get a list of 'n-steps' tensors of shape (batch_size, n_input)
+            inputs_x = tf.split(inputs_x, n_step)
+            print(tf.shape(inputs_x))
 
         weights_out1 = tf.Variable(tf.truncated_normal([2, n_hidden], stddev=np.sqrt(1./n_hidden)), name='weights')
         biases_out1  = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
-        weights_out2 = tf.Variable(tf.truncated_normal([2, n_hidden], stddev=np.sqrt(1./n_hidden)), name='weights')
-        biases_out2  = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
-
-    exit()
+        #weights_out2 = tf.Variable(tf.truncated_normal([2, n_hidden], stddev=np.sqrt(1./n_hidden)), name='weights')
+        #biases_out2  = weights_out1 = tf.Variable(tf.zeros(n_hidden), name='biases')
 
     with tf.name_scope('LTSM'):
         #   Forward directional cell
         lstm_fw_cell = tf.contrib.rnn.BasicLSTMCell(n_hidden, forget_bias=1.0, state_is_tuple=True)
         #   Backward directional cell
-        lstm_bx_cell = tf.contrib.rnn.BasicLSTMCell(n_hidden, forget_bias=1.0, state_is_tuple=True)
-
+        lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(n_hidden, forget_bias=1.0, state_is_tuple=True)
+    '''
+    with tf.name_scope("dynamic_rnn"):
+        rnn_cell = tf.nn.rnn_cell.BasicRNNCell(n_hidden)
+        initial_state = rnn_cell.zero_state(batch_size, dtype=tf.int32)
+        outputs, output_states = tf.nn.dynamic_rnn( cell=rnn_cell,
+                                                    inputs=inputs_x,
+                                                    initial_state=initial_state,
+                                                    dtype=tf.int32)
+        tf.summary.histogram("activations", outputs)
+    
+    '''
     with tf.name_scope('BiRNN'):
+        seq_length = tf.placeholder(tf.int32, shape=[None, n_step, n_inputs])
+        inputs_series = tf.split(seq_length, truncated_backprop_length, axis=1)
+        basic_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=n_neurons)
+        output_seqs, states = tf.nn.static_rnn(basic_cell, X_seqs, dtype=tf.float32)
+        #exit()
         #   Feed 'layer 3' (layer output from fw to bw to birnn) into the LSTM BRNN 
         #   cell and get the LSTM BRNN output
-        outputs, output_states = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstm_fw_cell,
-                                                                 cell_bw=lstm_bw_cell,
-                                                                 #  Input is the previous fully 
-                                                                 #  connected layer before the LTSM
-                                                                 input=inputs_x,
-                                                                 dtype=tf.float32,
-                                                                 time_major=True,
-                                                                 sequence_length=seq_length)
+        #outputs, output_states = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstm_fw_cell,
+        #                                                         cell_bw=lstm_bw_cell,
+        #                                                         #  Input is the previous fully 
+        #                                                         #  connected layer before the LTSM
+        #                                                         inputs=inputs_x,
+        #                                                         dtype=tf.float32,
+        #                                                         time_major=False),
+        #                                                         sequence_length=seq_length)
         tf.summary.histogram("activations", outputs)
+
+    exit()
 
     # Create a placeholder for the summary statistics
     with tf.name_scope("accuracy"):
@@ -273,10 +298,10 @@ src_dir = r"C:\Users\Zachary\Documents\A_School\ECE578-9_IntelligentRobotics_1-2
 abs_file_path = os.path.join(src_dir,test_rec_folder)
 
 #	Load the audio files into a matrix or array of arrays or multidimensional array
-audio_matrix, fs_matrix = AudioFileLoad(abs_file_path) # output => audiomatrix ; type - Matrix ; length - specified by file
+audio_matrix, fs_matrix, mfccs = AudioFileLoad(abs_file_path) # output => audiomatrix ; type - Matrix ; length - specified by file
 
 #	Convert the loaded audio array files into tensor arrays
-atensor_matrix = GetTensor(audio_matrix) # output => atensormatrix ; type - Matrix of tensors ; length - audiomatrix
-
+atensor_matrix= GetTensor(audio_matrix)#audio_matrix) # output => atensormatrix ; type - Matrix of tensors ; length - audiomatrix
+#, atensor_sliced 
 #   Set up the Bidirectional Recursive Neural Net
 birnn(audio_matrix, atensor_matrix, fs_matrix)
