@@ -199,6 +199,7 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
 
     n_step = 30
     n_hidden = 256
+    n_inputs = 256
     n_classes = 8 # 8 elements on command list -> see words_in_database
     n_cell_dim = 100
 
@@ -247,7 +248,8 @@ def birnn(audio_file_matrix, atensor_matrix, fs_matrix):
     
     '''
     with tf.name_scope('BiRNN'):
-        seq_length = tf.placeholder(tf.int32, shape=[None, n_step, n_inputs])
+        X = tf.placeholder(tf.int32, shape=[None, n_step, n_inputs])
+        X_seqs = tf.unstack(tf.transpose(X, perm=[1, 0, 2]))
         inputs_series = tf.split(seq_length, truncated_backprop_length, axis=1)
         basic_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=n_neurons)
         output_seqs, states = tf.nn.static_rnn(basic_cell, X_seqs, dtype=tf.float32)
